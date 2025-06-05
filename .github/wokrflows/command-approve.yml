@@ -1,0 +1,57 @@
+name: "Command: Approve"
+
+# 1️⃣ trigger on every new comment
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  approve:
+    # 2️⃣ Run only when the comment is `/approve`, is posted by not-bot *and* the discussion is in PR
+    if: |
+      github.event.comment.user.type != 'Bot' &&
+      github.event.issue.pull_request != null &&
+      (
+        github.event.comment.body == '/approve' ||
+        startsWith(github.event.comment.body, '/approve ') ||
+        startsWith(github.event.comment.body, '/approve\n')
+      )
+
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write   # to submit the approval review
+      contents: write        # to merge & delete branch (optional)
+
+    steps:
+      - name: "Approve PR via gh"
+        run: |
+          gh pr review ${{ github.event.issue.number }} \
+            --approve \
+            --body "Approved via ChatOps by @${{ github.event.comment.user.login }} 👍"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Merge PR (squash) & delete branch"
+        if: ${{ success() && github.event.pull_request.mergeable_state == 'clean' }}
+        run: |
+          gh pr merge ${{ github.event.issue.number }} \
+            --squash --delete-branch --subject "chore: merge via ChatOps"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Comment back on success"
+        if: success()
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          body: |
+            ✅ PR approved (and merged, if possible) via ChatOps by @${{ github.event.comment.user.login }}.
+            _Workflow_: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: "Comment back on failure"
+        if: failure()
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          body: |
+            ❌ ChatOps approval failed. See the [workflow logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
