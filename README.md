@@ -1,4 +1,5 @@
-// Note: This is applicable for specific projects only and not reccommended unless you know you need it
+> [!WARNING]  
+> This is applicable for specific projects only and not reccommended unless you know you need it
 
 # ChatOps `/approve` Example
 
